@@ -9,6 +9,7 @@ strip = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono = "0.4.24"
 clap = { version = "4.2.1", features = ["derive"] }
 futures-util = "0.3.27"
 indicatif = "0.17.3"
