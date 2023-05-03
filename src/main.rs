@@ -1,12 +1,17 @@
 use clap::Parser;
-use download::Downloader;
+use proxy::{Proxy, ProxyType};
+
 mod download;
+mod proxy;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[arg(short, long, default_value = "./")]
-    output: String,
+    dir: String,
+
+    #[arg(long)]
+    rules: bool,
 
     #[arg(
         long,
@@ -20,48 +25,42 @@ struct Args {
     )]
     domain_url: String,
 
-    #[arg(long, default_value = "wxray")]
-    proxy_name: String,
+    #[arg(id = "type", value_enum, long, default_value = "xray")]
+    t: ProxyType,
+
+    #[arg(long)]
+    upgrade: bool,
+
+    #[arg(
+        long,
+        default_value = "https://api.github.com/repos/XTLS/Xray-core/releases/latest"
+    )]
+    release_url: String,
+
+    #[arg(long, default_value = "Xray-windows-64.zip")]
+    asset_name: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    download_rules(&args).await?;
-    restart(&args.proxy_name);
+    let mut should_restart = false;
+    let proxy = proxy::new(&args.t, &args.dir, &args.release_url, &args.asset_name);
+
+    if args.rules {
+        proxy::download_rules(&args.dir, &args.ip_url, &args.domain_url).await?;
+        should_restart = true;
+    }
+
+    if args.upgrade {
+        proxy.upgrade()?;
+        should_restart = true;
+    }
+
+    if should_restart {
+        proxy.restart()?;
+    }
 
     Ok(())
-}
-
-async fn download_rules(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
-    let downloader = Downloader::new(&args.output);
-    println!("{}: Downloading geoip.dat...", chrono::Local::now());
-    downloader.download(&args.ip_url).await?;
-    println!("{}: Downloading geosite.dat...", chrono::Local::now());
-    downloader.download(&args.domain_url).await?;
-
-    Ok(())
-}
-
-#[cfg(target_os = "windows")]
-fn restart(process_name: &str) {
-    let mut cmd = std::process::Command::new("taskkill");
-    cmd.arg("/F")
-        .arg("/IM")
-        .arg(process_name.to_string() + ".exe");
-    cmd.output().expect("failed to execute process");
-    std::process::Command::new(process_name)
-        .spawn()
-        .expect("failed to execute process");
-}
-
-#[cfg(not(target_os = "windows"))]
-fn restart(process_name: &str) {
-    let mut cmd = std::process::Command::new("pkill");
-    cmd.arg(process_name);
-    cmd.output().expect("failed to execute process");
-    std::process::Command::new(process_name)
-        .spawn()
-        .expect("failed to execute process");
 }
